@@ -43,13 +43,12 @@ Screen {
 /* --- SIDEBAR LISTS --- */
 #sidebar {
     column-span: 2;
-    row-span: 7;
+    row-span: 8;
     layout: vertical;
 }
 
 .list-box {
     border: round #c678dd;
-    height: 1fr;
     background: black;
 }
 
@@ -59,6 +58,10 @@ Screen {
     height: 1fr;
     background: black;
     scrollbar-color: #c678dd black;
+}
+
+#drive-selector {
+    height: auto;
 }
 
 DirectoryTree > .directory-tree--folder {
@@ -74,16 +77,6 @@ DirectoryTree > .directory-tree--extension {
     color: #98c379;
 }
 
-/* Drive/root label above each tree */
-.drive-label {
-    color: #e5c07b;
-    text-style: bold;
-    background: #2c313a;
-    padding: 0 1;
-    height: 1;
-}
-
-/* Each drive's DirectoryTree gets equal vertical space */
 Sidebar DirectoryTree {
     border: round #c678dd;
     height: 1fr;
@@ -94,9 +87,13 @@ Sidebar DirectoryTree {
 /* --- MAIN CONTENT AREA --- */
 #main-content {
     column-span: 3;
-    row-span: 7;
+    row-span: 8;
     border: round #61afef;
     padding: 1 2;
+}
+
+#results-list {
+    height: 1fr;
 }
 
 #terminal-output {
@@ -119,7 +116,7 @@ Sidebar DirectoryTree {
 /* --- PLAYER CONTROL BAR --- */
 #player-bar {
     column-span: 5;
-    row-span: 2;
+    row-span: 1;
     border: round #56b6c2;
     layout: vertical;
     content-align: center middle;

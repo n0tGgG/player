@@ -1,8 +1,10 @@
+import asyncio
 import unittest
 from unittest.mock import patch
 
 from tui import CinemaTUI
-from textual.widgets import DirectoryTree
+from textual.app import App, ComposeResult
+from textual.widgets import DirectoryTree, OptionList
 
 from tui.components import TopBar, Sidebar, MainContent, PlayerBar
 from tui.styles import ASCII_ART, APP_CSS
@@ -29,19 +31,55 @@ class TestCinemaTUI(unittest.TestCase):
         self.assertEqual(main_content.id, "main-content")
         self.assertEqual(player_bar.id, "player-bar")
 
-    def test_sidebar_supports_multiple_drive_roots(self):
-        """Test that the sidebar can render more than one drive root."""
-        with patch("tui.components.discover_media_roots", return_value=[
-            "/home/gabri",
-            "/",
-            "/mnt/usb1",
-            "/mnt/usb2",
-        ]), patch.object(DirectoryTree, "watch_path", lambda self: None):
-            sidebar = Sidebar()
-            children = list(sidebar.compose())
+    def test_sidebar_supports_drive_selection(self):
+        """Test that the sidebar exposes one drive selector and one tree."""
+        class SidebarHarness(App):
+            def __init__(self, sidebar: Sidebar) -> None:
+                super().__init__()
+                self.sidebar = sidebar
 
-        trees = [child for child in children if isinstance(child, DirectoryTree)]
-        self.assertEqual(len(trees), 4)
+            def compose(self) -> ComposeResult:
+                yield self.sidebar
+
+        async def exercise() -> None:
+            with patch("tui.components.discover_media_roots", return_value=[
+                "/home/gabri",
+                "/",
+                "/mnt/usb1",
+                "/mnt/usb2",
+            ]):
+                sidebar = Sidebar()
+                app = SidebarHarness(sidebar)
+
+                async with app.run_test(size=(80, 24)):
+                    drive_selectors = list(sidebar.query(OptionList))
+                    trees = list(sidebar.query(DirectoryTree))
+
+                    self.assertEqual(sidebar.drive_roots, [
+                        "/home/gabri",
+                        "/",
+                        "/mnt/usb1",
+                        "/mnt/usb2",
+                    ])
+                    self.assertEqual(len(drive_selectors), 2)
+                    self.assertEqual(len(trees), 1)
+                    self.assertEqual(sidebar.current_drive, "/home/gabri")
+                    self.assertEqual(
+                        str(sidebar.source_tree.path).replace("\\", "/"),
+                        "/home/gabri",
+                    )
+                    self.assertEqual(sidebar.drive_selector.highlighted, 0)
+
+                    sidebar.set_drive_root("/mnt/usb2")
+                    await asyncio.sleep(0.05)
+
+                    self.assertEqual(
+                        str(sidebar.source_tree.path).replace("\\", "/"),
+                        "/mnt/usb2",
+                    )
+                    self.assertIn("usb2", str(sidebar.source_tree.border_title))
+
+        asyncio.run(exercise())
 
     def test_app_initialization(self):
         """Test that CinemaTUI app initializes without missing callbacks or errors."""

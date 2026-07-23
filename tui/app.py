@@ -149,11 +149,21 @@ class CinemaTUI(App):
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle media source, category, or search result selection."""
+        drive_selector = self.query_one("#drive-selector", OptionList)
         categories_list = self.query_one("#categories-list", OptionList)
         results_list = self.query_one("#results-list", OptionList)
         selected_value = self._option_value(event.option)
 
-        if event.option_list is categories_list:
+        if event.option_list is drive_selector:
+            sidebar = self.query_one(Sidebar)
+            sidebar.set_drive_root(selected_value)
+            self._update_status(f"Drive selected: {selected_value}", True)
+            try:
+                sidebar.source_tree.focus()
+            except Exception:
+                pass
+
+        elif event.option_list is categories_list:
             selected_key = selected_value.lower()
             if selected_key == "netflix":
                 self.action_stream_service("netflix")

@@ -5,14 +5,14 @@ import os
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.widgets import Button, Input, OptionList, Static, RichLog
+from textual.widgets import Button, DirectoryTree, Input, OptionList, RichLog, Static
 from textual.widgets.option_list import Option
 
 from .styles import ASCII_ART
 
 
 def discover_media_roots() -> list[str]:
-    """Return home/root plus any mounted external drives."""
+    """Return mounted drives first, then home/root fallbacks."""
     if os.name == "nt":
         return _discover_windows_roots()
     return _discover_unix_roots()
@@ -30,8 +30,8 @@ def _discover_windows_roots() -> list[str]:
 
 
 def _discover_unix_roots() -> list[str]:
-    roots = [str(Path.home()), "/"]
-    roots.extend(_discover_unix_mount_roots())
+    roots = _discover_unix_mount_roots()
+    roots.extend([str(Path.home()), "/"])
     return _dedupe_roots(roots)
 
 
@@ -50,7 +50,7 @@ def _discover_unix_mount_roots() -> list[str]:
         except OSError:
             continue
 
-    return discovered
+    return sorted(discovered)
 
 
 def _dedupe_roots(roots: list[str]) -> list[str]:
@@ -67,8 +67,14 @@ def _dedupe_roots(roots: list[str]) -> list[str]:
 
 
 def _format_root_label(root: str) -> str:
+    home_root = os.path.normcase(os.path.normpath(str(Path.home())))
+    candidate = os.path.normcase(os.path.normpath(root))
+
+    if candidate == home_root:
+        return "Home"
+
     if root in {"/", "\\"}:
-        return root
+        return "Root /"
 
     if os.name == "nt" and len(root) == 3 and root[1:] == ":\\":
         return root[:2]
@@ -111,33 +117,80 @@ class Sidebar(VerticalScroll):
     DEFAULT_CSS = """
     Sidebar {
         column-span: 2;
-        row-span: 7;
+        row-span: 8;
         layout: vertical;
     }
     """
 
     def __init__(self) -> None:
         super().__init__(id="sidebar")
+        self.drive_roots = discover_media_roots() or [str(Path.home())]
+        self.current_drive = self.drive_roots[0]
+        self.drive_selector = None
+        self.source_tree = None
+        self.categories_list = None
 
-    def compose(self) -> ComposeResult:
-        from textual.widgets import DirectoryTree
+    def _build_drive_selector(self) -> OptionList:
+        drive_options = [
+            Option(_format_root_label(root), id=root)
+            for root in self.drive_roots
+        ]
 
-        roots = discover_media_roots()
-        for i, root in enumerate(roots):
-            # Show a label for each root/drive
-            yield Static(_format_root_label(root), classes="drive-label")
-            # DirectoryTree for the root path
-            yield DirectoryTree(root, id=f"sources-list-{i}")
+        drive_selector = OptionList(*drive_options, id="drive-selector")
+        drive_selector.border_title = "Drives"
+        drive_selector.add_class("list-box")
 
-        playlists = OptionList(
+        for index, option in enumerate(drive_selector.options):
+            if str(getattr(option, "id", "")) == self.current_drive:
+                drive_selector.highlighted = index
+                break
+
+        return drive_selector
+
+    def _build_source_tree(self) -> DirectoryTree:
+        source_tree = DirectoryTree(self.current_drive, id="sources-list")
+        source_tree.border_title = f"Files — {_format_root_label(self.current_drive)}"
+        source_tree.add_class("list-box")
+        return source_tree
+
+    def _build_categories_list(self) -> OptionList:
+        categories_list = OptionList(
             Option("Netflix", id="netflix"),
             Option("Prime Video", id="prime"),
             Option("RaiPlay", id="raiplay"),
+            id="categories-list",
         )
-        playlists.border_title = "Streaming"
-        playlists.id = "categories-list"
-        playlists.add_class("list-box")
-        yield playlists
+        categories_list.border_title = "Streaming"
+        categories_list.add_class("list-box")
+        return categories_list
+
+    def compose(self) -> ComposeResult:
+        if self.drive_selector is None:
+            self.drive_selector = self._build_drive_selector()
+        if self.source_tree is None:
+            self.source_tree = self._build_source_tree()
+        if self.categories_list is None:
+            self.categories_list = self._build_categories_list()
+
+        yield self.drive_selector
+        yield self.source_tree
+        yield self.categories_list
+
+    def set_drive_root(self, root: str) -> None:
+        normalized_root = str(root)
+        self.current_drive = normalized_root
+        source_tree = getattr(self, "source_tree", None)
+        if source_tree is not None:
+            source_tree.border_title = f"Files — {_format_root_label(normalized_root)}"
+            if str(source_tree.path) != normalized_root:
+                source_tree.path = normalized_root
+
+        drive_selector = getattr(self, "drive_selector", None)
+        if drive_selector is not None:
+            for index, option in enumerate(drive_selector.options):
+                if str(getattr(option, "id", "")) == normalized_root:
+                    drive_selector.highlighted = index
+                    break
 
 
 class MainContent(VerticalScroll):
@@ -146,7 +199,7 @@ class MainContent(VerticalScroll):
     DEFAULT_CSS = """
     MainContent {
         column-span: 3;
-        row-span: 7;
+        row-span: 8;
         border: round #61afef;
         padding: 1 2;
     }
@@ -186,7 +239,7 @@ class PlayerBar(Vertical):
     DEFAULT_CSS = """
     PlayerBar {
         column-span: 5;
-        row-span: 2;
+        row-span: 1;
         border: round #56b6c2;
         layout: vertical;
         content-align: center middle;
