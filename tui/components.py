@@ -1,5 +1,8 @@
 """UI Components for CinemaTUI."""
 
+from pathlib import Path
+import os
+
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Button, Input, OptionList, Static, RichLog
@@ -8,12 +11,78 @@ from textual.widgets.option_list import Option
 from .styles import ASCII_ART
 
 
+def discover_media_roots() -> list[str]:
+    """Return home/root plus any mounted external drives."""
+    if os.name == "nt":
+        return _discover_windows_roots()
+    return _discover_unix_roots()
+
+
+def _discover_windows_roots() -> list[str]:
+    import string
+
+    roots: list[str] = []
+    for letter in string.ascii_uppercase:
+        path = f"{letter}:\\"
+        if os.path.isdir(path):
+            roots.append(path)
+    return roots
+
+
+def _discover_unix_roots() -> list[str]:
+    roots = [str(Path.home()), "/"]
+    roots.extend(_discover_unix_mount_roots())
+    return _dedupe_roots(roots)
+
+
+def _discover_unix_mount_roots() -> list[str]:
+    mount_bases = (Path("/mnt"), Path("/media"), Path("/run/media"))
+    discovered: list[str] = []
+
+    for base in mount_bases:
+        if not base.exists():
+            continue
+
+        try:
+            for candidate in base.rglob("*"):
+                if candidate.is_dir() and candidate.is_mount():
+                    discovered.append(str(candidate))
+        except OSError:
+            continue
+
+    return discovered
+
+
+def _dedupe_roots(roots: list[str]) -> list[str]:
+    unique: list[str] = []
+    seen: set[str] = set()
+
+    for root in roots:
+        normalized = os.path.normcase(os.path.normpath(root))
+        if normalized not in seen:
+            seen.add(normalized)
+            unique.append(root)
+
+    return unique
+
+
+def _format_root_label(root: str) -> str:
+    if root in {"/", "\\"}:
+        return root
+
+    if os.name == "nt" and len(root) == 3 and root[1:] == ":\\":
+        return root[:2]
+
+    label = Path(root).name
+    return label or root.rstrip("\\/")
+
+
 class TopBar(Horizontal):
     """Top navigation bar containing search and action buttons."""
 
     DEFAULT_CSS = """
     TopBar {
-        column-span: 4;
+        column-span: 5;
         row-span: 1;
         layout: horizontal;
     }
@@ -36,12 +105,12 @@ class TopBar(Horizontal):
         yield Button("Web", id="web", classes="small-panel")
 
 
-class Sidebar(Vertical):
+class Sidebar(VerticalScroll):
     """Sidebar containing sources and categories lists."""
 
     DEFAULT_CSS = """
     Sidebar {
-        column-span: 1;
+        column-span: 2;
         row-span: 7;
         layout: vertical;
     }
@@ -51,29 +120,12 @@ class Sidebar(Vertical):
         super().__init__(id="sidebar")
 
     def compose(self) -> ComposeResult:
-        import os
-        import string
         from textual.widgets import DirectoryTree
-        
-        # Determine root paths to show: user home and any external drives (Windows) or '/' (Unix)
-        def _get_roots():
-            roots = []
-            if os.name == "nt":
-                # Windows: iterate letters A-Z and include if drive exists
-                for letter in string.ascii_uppercase:
-                    path = f"{letter}:\\"
-                    if os.path.isdir(path):
-                        roots.append(path)
-            else:
-                # On Unix-like systems, include the home directory and root
-                roots.append(os.path.expanduser("~"))
-                roots.append("/")
-            return roots
-        
-        roots = _get_roots()
+
+        roots = discover_media_roots()
         for i, root in enumerate(roots):
             # Show a label for each root/drive
-            yield Static(root.rstrip("\\/"), classes="drive-label")
+            yield Static(_format_root_label(root), classes="drive-label")
             # DirectoryTree for the root path
             yield DirectoryTree(root, id=f"sources-list-{i}")
 
@@ -133,7 +185,7 @@ class PlayerBar(Vertical):
 
     DEFAULT_CSS = """
     PlayerBar {
-        column-span: 4;
+        column-span: 5;
         row-span: 2;
         border: round #56b6c2;
         layout: vertical;

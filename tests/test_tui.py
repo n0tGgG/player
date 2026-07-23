@@ -1,5 +1,9 @@
 import unittest
+from unittest.mock import patch
+
 from tui import CinemaTUI
+from textual.widgets import DirectoryTree
+
 from tui.components import TopBar, Sidebar, MainContent, PlayerBar
 from tui.styles import ASCII_ART, APP_CSS
 
@@ -24,6 +28,20 @@ class TestCinemaTUI(unittest.TestCase):
         self.assertEqual(sidebar.id, "sidebar")
         self.assertEqual(main_content.id, "main-content")
         self.assertEqual(player_bar.id, "player-bar")
+
+    def test_sidebar_supports_multiple_drive_roots(self):
+        """Test that the sidebar can render more than one drive root."""
+        with patch("tui.components.discover_media_roots", return_value=[
+            "/home/gabri",
+            "/",
+            "/mnt/usb1",
+            "/mnt/usb2",
+        ]), patch.object(DirectoryTree, "watch_path", lambda self: None):
+            sidebar = Sidebar()
+            children = list(sidebar.compose())
+
+        trees = [child for child in children if isinstance(child, DirectoryTree)]
+        self.assertEqual(len(trees), 4)
 
     def test_app_initialization(self):
         """Test that CinemaTUI app initializes without missing callbacks or errors."""

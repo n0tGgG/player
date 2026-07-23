@@ -12,16 +12,16 @@ ASCII_ART = r"""
 # Application CSS Stylesheet
 APP_CSS = """
 Screen {
-    /* Grid system: 4 columns, 10 proportional rows */
+    /* Grid system: 5 columns, 10 proportional rows */
     layout: grid;
-    grid-size: 4 10; 
+    grid-size: 5 10; 
     background: black;
     color: white;
 }
 
 /* --- TOP NAVIGATION BAR --- */
 #top-bar {
-    column-span: 4;
+    column-span: 5;
     row-span: 1;
     layout: horizontal;
 }
@@ -42,7 +42,7 @@ Screen {
 
 /* --- SIDEBAR LISTS --- */
 #sidebar {
-    column-span: 1;
+    column-span: 2;
     row-span: 7;
     layout: vertical;
 }
@@ -118,7 +118,7 @@ Sidebar DirectoryTree {
 
 /* --- PLAYER CONTROL BAR --- */
 #player-bar {
-    column-span: 4;
+    column-span: 5;
     row-span: 2;
     border: round #56b6c2;
     layout: vertical;
