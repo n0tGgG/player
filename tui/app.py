@@ -8,6 +8,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
 from textual.widgets import Button, DirectoryTree, Input, OptionList, Static
+from textual.widgets.option_list import Option
 
 from controllers import CinemaController, PlaybackState
 from .components import MainContent, PlayerBar, Sidebar, TopBar
@@ -150,20 +151,21 @@ class CinemaTUI(App):
         """Handle media source, category, or search result selection."""
         categories_list = self.query_one("#categories-list", OptionList)
         results_list = self.query_one("#results-list", OptionList)
+        selected_value = self._option_value(event.option)
 
         if event.option_list is categories_list:
-            selected_text = str(event.option)
-            if selected_text == "Netflix":
+            selected_key = selected_value.lower()
+            if selected_key == "netflix":
                 self.action_stream_service("netflix")
-            elif selected_text == "Prime Video":
+            elif selected_key == "prime":
                 self.action_stream_service("prime")
-            elif selected_text == "RaiPlay":
+            elif selected_key == "raiplay":
                 self.run_worker(self.controller.stream_service("raiplay", "https://www.raiplay.it"))
 
         elif event.option_list is results_list:
             try:
-                file_path = getattr(event.option, "id", None) or str(event.option)
-                if isinstance(file_path, str) and file_path.startswith("web:"):
+                file_path = selected_value
+                if file_path.startswith("web:"):
                     svc = file_path.split(":", 1)[1]
                     if svc == "custom":
                         self._update_status(
@@ -265,8 +267,9 @@ class CinemaTUI(App):
 
     async def _async_scan_local(self) -> None:
         success, items, error = await self.controller.scan_files()
+        self.current_files = items if success else []
+        self._populate_results_list(items if success else [])
         if success:
-            self.current_files = items
             self._update_status(f"Found {len(items)} files", True)
         else:
             self._update_status(error or "Scan failed", False)
@@ -279,18 +282,9 @@ class CinemaTUI(App):
         self._start_spinner("Scanning (fast)")
         try:
             success, items, error = await self.controller.scan_fast()
+            self.current_files = items if success else []
+            self._populate_results_list(items if success else [])
             if success:
-                self.current_files = items
-                results_list = self.query_one("#results-list", OptionList)
-                try:
-                    results_list.clear()
-                except Exception:
-                    pass
-                for item in items:
-                    try:
-                        results_list.add_option(item.filename, item.path)
-                    except Exception:
-                        results_list.add_option(item.filename)
                 self._update_status(f"Found {len(items)} files", True)
             else:
                 self._update_status(error or "Scan failed", False)
@@ -306,18 +300,9 @@ class CinemaTUI(App):
         self._start_spinner("Scanning (full)")
         try:
             success, items, error = await self.controller.scan_full()
+            self.current_files = items if success else []
+            self._populate_results_list(items if success else [])
             if success:
-                self.current_files = items
-                results_list = self.query_one("#results-list", OptionList)
-                try:
-                    results_list.clear()
-                except Exception:
-                    pass
-                for item in items:
-                    try:
-                        results_list.add_option(item.filename, item.path)
-                    except Exception:
-                        results_list.add_option(item.filename)
                 self._update_status(f"Full scan found {len(items)} files", True)
             else:
                 self._update_status(error or "Full scan failed", False)
@@ -342,11 +327,12 @@ class CinemaTUI(App):
 
     async def _async_search_files(self, pattern: str) -> None:
         success, items, error = await self.controller.scan_files(pattern=pattern)
+        self.current_files = items if success else []
+        self._populate_results_list(items if success else [])
         if success:
-            self.current_files = items
             self._update_status(f"Found {len(items)} matches", True)
         else:
-            self._update_status(f"No matches for '{pattern}'", False)
+            self._update_status(error or f"No matches for '{pattern}'", False)
 
     def action_play_url(self, url: str) -> None:
         """Play media from a direct URL or YouTube link."""
@@ -361,6 +347,7 @@ class CinemaTUI(App):
         self.run_worker(self._async_stream_service(service))
 
     async def _async_stream_service(self, service: str) -> None:
+        self._update_status(f"Launching {service}...", True)
         success, msg = await self.controller.stream_service(service)
         self._update_status(msg, success)
 
@@ -381,6 +368,25 @@ class CinemaTUI(App):
         logger.info("Quitting CinemaTUI")
         await self.controller.cleanup()
         self.exit()
+
+    @staticmethod
+    def _option_value(option: object) -> str:
+        option_id = getattr(option, "id", None)
+        if option_id:
+            return str(option_id)
+        prompt = getattr(option, "prompt", None)
+        if prompt is not None:
+            return str(prompt)
+        return str(option)
+
+    def _populate_results_list(self, items: List) -> None:
+        try:
+            results_list = self.query_one("#results-list", OptionList)
+            results_list.clear()
+            for item in items:
+                results_list.add_option(Option(item.filename, id=str(item.path)))
+        except Exception as exc:
+            logger.debug(f"Could not populate results list: {exc}")
 
     # -------------------------------------------------------------------------
     # UI Helpers (Status, Spinner, Web Options)
@@ -435,10 +441,10 @@ class CinemaTUI(App):
         except Exception:
             pass
         try:
-            results_list.add_option("Netflix", "web:netflix")
-            results_list.add_option("Prime Video", "web:prime")
-            results_list.add_option("YouTube", "web:youtube")
-            results_list.add_option("Custom URL...", "web:custom")
+            results_list.add_option(Option("Netflix", id="web:netflix"))
+            results_list.add_option(Option("Prime Video", id="web:prime"))
+            results_list.add_option(Option("YouTube", id="web:youtube"))
+            results_list.add_option(Option("Custom URL...", id="web:custom"))
         except Exception:
             results_list.add_option("Netflix")
             results_list.add_option("Prime Video")

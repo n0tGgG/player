@@ -263,13 +263,22 @@ class CinemaController:
             (success, message)
         """
         try:
+            if not file_path:
+                return False, "File path is required"
+
+            media_path = Path(file_path).expanduser()
+            if not media_path.is_file():
+                error_msg = f"File not found: {file_path}"
+                self._set_error(error_msg)
+                return False, error_msg
+
             if not self._ensure_player_initialized():
                 return False, "Media player not available"
 
-            success = await self.player.play(file_path)
+            success = await self.player.play(str(media_path))
             if success:
                 self.state.playback_state = PlaybackState.PLAYING
-                self.state.current_file = file_path
+                self.state.current_file = str(media_path)
                 self.logger.info(f"Started playback: {file_path}")
                 return True, "Playback started"
             else:
@@ -296,7 +305,7 @@ class CinemaController:
             if not self._ensure_player_initialized():
                 return False, "Media player not available"
 
-            if not any(domain in url.lower() for domain in ["youtube.com", "youtu.be"]):
+            if not any(domain in url.lower() for domain in ["youtube.com", "youtu.be", "yt.be"]):
                 return False, "Invalid YouTube URL"
 
             success = await self.player.play(url)
@@ -457,17 +466,25 @@ class CinemaController:
             (success, message)
         """
         try:
-            if not self.player:
-                return False, "Player not available"
+            if self.player and self.player.process is not None:
+                success = await self.player.volume_up(float(step))
+                if success:
+                    self.state.current_volume = min(100, self.state.current_volume + step)
+                    self.logger.info(f"Volume increased: {self.state.current_volume}%")
+                    self._emit("volume_change", self.state.current_volume)
+                    return True, f"Volume: {self.state.current_volume}%"
 
-            success = await self.player.volume_up(float(step))
+            success = await self.system.increase_volume(step)
             if success:
-                self.state.current_volume = min(100, self.state.current_volume + step)
+                volume, _ = await self.get_volume()
+                if volume is not None:
+                    self.state.current_volume = volume
+                else:
+                    self.state.current_volume = min(100, self.state.current_volume + step)
                 self.logger.info(f"Volume increased: {self.state.current_volume}%")
                 self._emit("volume_change", self.state.current_volume)
                 return True, f"Volume: {self.state.current_volume}%"
-            else:
-                return False, "Could not increase volume"
+            return False, "Could not increase volume"
 
         except Exception as e:
             error_msg = f"Volume up error: {str(e)}"
@@ -485,17 +502,25 @@ class CinemaController:
             (success, message)
         """
         try:
-            if not self.player:
-                return False, "Player not available"
+            if self.player and self.player.process is not None:
+                success = await self.player.volume_down(float(step))
+                if success:
+                    self.state.current_volume = max(0, self.state.current_volume - step)
+                    self.logger.info(f"Volume decreased: {self.state.current_volume}%")
+                    self._emit("volume_change", self.state.current_volume)
+                    return True, f"Volume: {self.state.current_volume}%"
 
-            success = await self.player.volume_down(float(step))
+            success = await self.system.decrease_volume(step)
             if success:
-                self.state.current_volume = max(0, self.state.current_volume - step)
+                volume, _ = await self.get_volume()
+                if volume is not None:
+                    self.state.current_volume = volume
+                else:
+                    self.state.current_volume = max(0, self.state.current_volume - step)
                 self.logger.info(f"Volume decreased: {self.state.current_volume}%")
                 self._emit("volume_change", self.state.current_volume)
                 return True, f"Volume: {self.state.current_volume}%"
-            else:
-                return False, "Could not decrease volume"
+            return False, "Could not decrease volume"
 
         except Exception as e:
             error_msg = f"Volume down error: {str(e)}"
@@ -735,3 +760,5 @@ __all__ = [
     "InvalidURLError",
     "KioskProcessError",
 ]
+
+

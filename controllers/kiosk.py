@@ -323,6 +323,11 @@ class KioskManager:
         """Initialize kiosk manager."""
         self.kiosk = WebKiosk(on_kiosk_closed=self._on_kiosk_closed)
         self._closed_event: Optional[asyncio.Event] = None
+
+    def _reset_closed_event(self) -> asyncio.Event:
+        """Create a fresh close event for a new kiosk launch."""
+        self._closed_event = asyncio.Event()
+        return self._closed_event
     
     async def _on_kiosk_closed(self) -> None:
         """Handle kiosk close event."""
@@ -332,7 +337,7 @@ class KioskManager:
     
     async def __aenter__(self) -> "KioskManager":
         """Enter async context."""
-        self._closed_event = asyncio.Event()
+        self._reset_closed_event()
         return self
     
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
@@ -346,9 +351,9 @@ class KioskManager:
         Args:
             url: URL to open.
         """
+        closed_event = self._reset_closed_event()
         await self.kiosk.launch(url)
-        if self._closed_event:
-            await self._closed_event.wait()
+        await closed_event.wait()
     
     async def shutdown(self) -> None:
         """Shutdown kiosk."""
@@ -357,3 +362,7 @@ class KioskManager:
     def is_running(self) -> bool:
         """Check if kiosk is running."""
         return self.kiosk.is_running()
+
+
+
+

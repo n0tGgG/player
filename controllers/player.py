@@ -77,6 +77,14 @@ class MpvController:
         """Check if mpv executable is available in system PATH."""
         return shutil.which("mpv") is not None
 
+    @staticmethod
+    def _is_remote_source(source: str) -> bool:
+        """Check whether a source string refers to a remote media source."""
+        lowered = source.lower()
+        return lowered.startswith(("http://", "https://")) or any(
+            domain in lowered for domain in ["youtube.com", "youtu.be", "yt.be"]
+        )
+
     async def play(self, file_path: str) -> bool:
         """
         Play a file or URL.
@@ -91,6 +99,12 @@ class MpvController:
             True if play command succeeded, False otherwise.
         """
         try:
+            if not self._is_remote_source(file_path):
+                media_path = Path(file_path).expanduser()
+                if not media_path.is_file():
+                    logger.warning(f"Media file not found: {file_path}")
+                    return False
+
             if self._use_system_player:
                 # Fallback: open with the OS default application
                 import os as _os
@@ -492,3 +506,4 @@ class MpvController:
         await self.stop()
         self._cleanup_socket()
         logger.info("MpvController cleanup completed")
+

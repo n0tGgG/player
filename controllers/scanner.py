@@ -77,7 +77,8 @@ class FileScanner:
     async def _get_file_size(self, file_path: Path) -> int:
         """Non-blocking file size retrieval."""
         try:
-            return await asyncio.to_thread(file_path.stat).st_size
+            stat_result = await asyncio.to_thread(file_path.stat)
+            return stat_result.st_size
         except (OSError, PermissionError) as e:
             logger.debug(f"Could not stat {file_path}: {e}")
             return 0
@@ -331,3 +332,4 @@ if __name__ == "__main__":
     print("  results = await scanner.scan(paths=['/mnt/media'], pattern='avengers')")
     print("  print(f'Found {len(results)} files')")
     print("=" * 70)
+

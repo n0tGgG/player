@@ -3,6 +3,7 @@
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Button, Input, OptionList, Static, RichLog
+from textual.widgets.option_list import Option
 
 from .styles import ASCII_ART
 
@@ -76,7 +77,11 @@ class Sidebar(Vertical):
             # DirectoryTree for the root path
             yield DirectoryTree(root, id=f"sources-list-{i}")
 
-        playlists = OptionList("Netflix", "Prime Video", "RaiPlay")
+        playlists = OptionList(
+            Option("Netflix", id="netflix"),
+            Option("Prime Video", id="prime"),
+            Option("RaiPlay", id="raiplay"),
+        )
         playlists.border_title = "Streaming"
         playlists.id = "categories-list"
         playlists.add_class("list-box")
@@ -151,3 +156,5 @@ class PlayerBar(Vertical):
             yield Button("[Poweroff]", id="poweroff")
             # Spinner area for loading animations
             yield Static("", id="spinner")
+
+

@@ -142,4 +142,40 @@ Button {
 Button:hover {
     background: #3e4451;
 }
+
+/* --- FOCUS HIGHLIGHTS (Tab navigation) --- */
+
+/* DirectoryTree focus */
+DirectoryTree:focus {
+    border: round #e5c07b;
+}
+
+/* OptionList focus */
+OptionList:focus {
+    border: round #e5c07b;
+}
+
+/* Search input focus */
+#search-box:focus {
+    border: round #e5c07b;
+}
+
+/* Button focus */
+Button:focus {
+    background: #3e4451;
+    border: tall #e5c07b;
+    text-style: bold;
+}
+
+/* Highlighted item inside a focused OptionList */
+OptionList:focus > .option-list--option-highlighted {
+    background: #3a3a1e;
+    color: #e5c07b;
+}
+
+/* Highlighted item inside a focused DirectoryTree */
+DirectoryTree:focus > .directory-tree--cursor {
+    background: #3a3a1e;
+    color: #e5c07b;
+}
 """
