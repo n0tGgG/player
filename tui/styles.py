@@ -74,6 +74,23 @@ DirectoryTree > .directory-tree--extension {
     color: #98c379;
 }
 
+/* Drive/root label above each tree */
+.drive-label {
+    color: #e5c07b;
+    text-style: bold;
+    background: #2c313a;
+    padding: 0 1;
+    height: 1;
+}
+
+/* Each drive's DirectoryTree gets equal vertical space */
+Sidebar DirectoryTree {
+    border: round #c678dd;
+    height: 1fr;
+    background: black;
+    scrollbar-color: #c678dd black;
+}
+
 /* --- MAIN CONTENT AREA --- */
 #main-content {
     column-span: 3;

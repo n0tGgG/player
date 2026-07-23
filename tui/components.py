@@ -51,13 +51,30 @@ class Sidebar(Vertical):
 
     def compose(self) -> ComposeResult:
         import os
+        import string
         from textual.widgets import DirectoryTree
         
-        path = os.path.expanduser("~")
-        library = DirectoryTree(path, id="sources-list")
-        library.border_title = "Sources"
-        library.add_class("list-box")
-        yield library
+        # Determine root paths to show: user home and any external drives (Windows) or '/' (Unix)
+        def _get_roots():
+            roots = []
+            if os.name == "nt":
+                # Windows: iterate letters A-Z and include if drive exists
+                for letter in string.ascii_uppercase:
+                    path = f"{letter}:\\"
+                    if os.path.isdir(path):
+                        roots.append(path)
+            else:
+                # On Unix-like systems, include the home directory and root
+                roots.append(os.path.expanduser("~"))
+                roots.append("/")
+            return roots
+        
+        roots = _get_roots()
+        for i, root in enumerate(roots):
+            # Show a label for each root/drive
+            yield Static(root.rstrip("\\/"), classes="drive-label")
+            # DirectoryTree for the root path
+            yield DirectoryTree(root, id=f"sources-list-{i}")
 
         playlists = OptionList("Netflix", "Prime Video", "RaiPlay")
         playlists.border_title = "Streaming"
