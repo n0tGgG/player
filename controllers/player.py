@@ -374,7 +374,7 @@ class MpvController:
             logger.debug(f"Error querying position: {e}")
         return None
 
-    def _build_mpv_command(self, file_path: str) -> List[str]:
+    def _build_mpv_command(self, file_path: str) -> list[str]:
         """
         Build mpv command with appropriate options for file type.
 
@@ -386,11 +386,13 @@ class MpvController:
         Returns:
             Command list suitable for subprocess.Popen.
         """
-        cmd = [
+        cmd: list[str] = [
             self.mpv_binary or "mpv",
             "--fullscreen",
-            "--hwdec=auto",
+            "--hwdec=auto-safe",
             "--vo=gpu",
+            "--profile=fast",
+            "--framedrop=vo",
             "--no-terminal",
             f"--input-ipc-server={self.socket_path}",
             "--keep-open=yes",

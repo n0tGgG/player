@@ -61,10 +61,14 @@ class TestRuntimeRegression(unittest.TestCase):
 
         self.assertEqual(command[0], "/usr/bin/mpv")
         self.assertIn("--fullscreen", command)
-        self.assertIn("--hwdec=auto", command)
+        self.assertIn("--hwdec=auto-safe", command)
         self.assertIn("--vo=gpu", command)
+        self.assertIn("--profile=fast", command)
+        self.assertIn("--framedrop=vo", command)
         self.assertIn("--no-terminal", command)
+        self.assertIn("--input-ipc-server=/tmp/mpvsocket", command)
         self.assertIn("--audio-device=alsa/hdmi:CARD=HDMI,DEV=0", command)
+        self.assertEqual(command[-1], "/media/movie.mp4")
 
     def test_kiosk_launch_waits_for_close(self) -> None:
         manager = KioskManager()
