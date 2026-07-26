@@ -52,8 +52,8 @@ class MpvController:
             socket_path: Path to mpv IPC socket. Defaults to /tmp/mpvsocket for Linux.
             on_finish: Optional callback invoked when video finishes playing.
 
-        Falls back to the OS default media player (e.g. VLC, Windows Media Player)
-        if mpv is not installed.
+        On Linux kiosk systems, mpv is required for playback. Windows may
+        fall back to the OS default media player if mpv is unavailable.
         """
         self.socket_path = socket_path
         self.on_finish = on_finish
@@ -62,20 +62,61 @@ class MpvController:
         self.current_file: Optional[str] = None
         self._monitor_task: Optional[asyncio.Task] = None
         self._request_counter = 0
-        self._use_system_player: bool = False  # fallback when mpv not available
+        self._use_system_player: bool = False
+        self.mpv_binary = self._resolve_mpv_binary()
 
-        if not self._check_mpv_installed():
-            logger.warning(
-                "mpv not found — falling back to OS default media player (os.startfile)."
-            )
-            self._use_system_player = True
+        if not self.mpv_binary:
+            if self._is_windows_platform():
+                logger.warning(
+                    "mpv not found - falling back to the Windows default media player."
+                )
+                self._use_system_player = True
+            else:
+                raise RuntimeError(
+                    "mpv not found. Install it with 'sudo apt install mpv' or set MPV_BIN."
+                )
         else:
-            logger.info("MpvController initialized successfully with mpv")
+            logger.info(f"MpvController initialized successfully with {self.mpv_binary}")
 
     @staticmethod
-    def _check_mpv_installed() -> bool:
-        """Check if mpv executable is available in system PATH."""
-        return shutil.which("mpv") is not None
+    def _is_windows_platform() -> bool:
+        """Return True when running on Windows."""
+        return os.name == "nt"
+
+    @classmethod
+    def _resolve_mpv_binary(cls) -> Optional[str]:
+        """Locate the mpv executable from env vars, PATH, or common Linux paths."""
+        candidates = [
+            os.getenv("MPV_BIN"),
+            os.getenv("MPV_PATH"),
+            "mpv",
+            "/usr/bin/mpv",
+            "/usr/local/bin/mpv",
+            "/snap/bin/mpv",
+        ]
+
+        for candidate in candidates:
+            resolved = cls._resolve_executable(candidate)
+            if resolved:
+                return resolved
+
+        return None
+
+    @staticmethod
+    def _resolve_executable(candidate: Optional[str]) -> Optional[str]:
+        """Resolve an executable path from a candidate string."""
+        if not candidate:
+            return None
+
+        resolved = shutil.which(candidate)
+        if resolved:
+            return resolved
+
+        candidate_path = Path(candidate).expanduser()
+        if candidate_path.is_file() and os.access(candidate_path, os.X_OK):
+            return str(candidate_path)
+
+        return None
 
     @staticmethod
     def _is_remote_source(source: str) -> bool:
@@ -89,8 +130,8 @@ class MpvController:
         """
         Play a file or URL.
 
-        Uses mpv if available; falls back to the OS default app (os.startfile) on
-        systems where mpv is not installed (e.g. Windows).
+        Uses mpv on Linux kiosk systems. On Windows, falls back to the default
+        desktop application only when mpv is unavailable.
 
         Args:
             file_path: Local file path, HTTP URL, or YouTube URL.
@@ -346,13 +387,18 @@ class MpvController:
             Command list suitable for subprocess.Popen.
         """
         cmd = [
-            "mpv",
+            self.mpv_binary or "mpv",
             "--fullscreen",
+            "--hwdec=auto",
+            "--vo=gpu",
+            "--no-terminal",
             f"--input-ipc-server={self.socket_path}",
-            "--no-video-window-title",
             "--keep-open=yes",
-            "--script-opts=input.conf",
         ]
+
+        audio_device = os.getenv("MPV_AUDIO_DEVICE")
+        if audio_device:
+            cmd.append(f"--audio-device={audio_device}")
 
         # Enable YouTube format selection for YouTube URLs
         if self._is_youtube_url(file_path):
